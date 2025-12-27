@@ -4,14 +4,25 @@
     <id>SelectShrineRecipe</id>
     <author>Kanayan-KK</author>
     <loadPriority>100</loadPriority>
-    <version>0.23.252</version>
+    <version>0.23.253</version>
     <tags>General,QoL,Cheat</tags>
     <description>
-    cfgファイルの修正には「[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3379819704] Mod Config GUI [/url]」の使用をおすすめします。
-    [hr][/hr]
-    [hr][/hr]
-    [hr][/hr]
-    [url=https://github.com/Kanayan-KK/SelectShrineRecipe] SourceCode [/url]
+        車輪の祠使用時に習得するレシピをリストから選択可能にします。
+        cfg設定値の変更でデラックス雪プチケーキ等の現物解体からしか習得できない隠しレシピを表示することができます。
+        cfg設定値の変更には「[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3379819704] Mod Config GUI [/url]」の使用をおすすめします。
+        ShowHiddenRecipe:隠しレシピを表示する
+        [hr][/hr]
+        Allows you to select a recipe to learn from a list when using a Shrine of the Wheel.
+        By changing the cfg setting, you can display hidden recipes that can normally only be learned by dismantling the item itself (e.g. Deluxe Snow Petite Cake).
+        Using "[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3379819704] Mod Config GUI [/url]" is recommended for changing cfg settings.
+        ShowHiddenRecipe: Show hidden recipes
+        [hr][/hr]
+        使用车轮神社时，可以从列表中选择要习得的配方。
+        通过更改cfg设置，可以显示通常只能通过拆解现货（如豪华雪小蛋糕）才能习得的隐藏配方。
+        更改cfg设置时，推荐使用“[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3379819704] Mod Config GUI [/url]”。
+        ShowHiddenRecipe:显示隐藏配方
+        [hr][/hr]
+        [url=https://github.com/Kanayan-KK/SelectShrineRecipe] SourceCode [/url]
     </description>
     <builtin>false</builtin>
     <visibility>Public</visibility>
