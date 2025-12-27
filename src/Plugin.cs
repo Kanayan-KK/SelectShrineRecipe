@@ -16,10 +16,12 @@ public static class ModInfo
 internal class Plugin : BaseUnityPlugin
 {
     internal static Plugin? Instance;
+    internal BepInEx.Configuration.ConfigEntry<bool>? ShowHiddenRecipe;
 
     private void Awake()
     {
         Instance = this;
+        ShowHiddenRecipe = Config.Bind("General", "ShowHiddenRecipe", false, "Show hidden recipes");
         Harmony.CreateAndPatchAll(Assembly.GetExecutingAssembly(), ModInfo.Guid);
     }
 
