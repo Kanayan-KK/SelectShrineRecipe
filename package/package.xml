@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Meta>
+    <title>Select Shrine Recipe</title>
+    <id>SelectShrineRecipe</id>
+    <author>Kanayan-KK</author>
+    <loadPriority>100</loadPriority>
+    <version>0.23.252</version>
+    <tags>General,QoL,Cheat</tags>
+    <description>
+    cfgファイルの修正には「[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3379819704] Mod Config GUI [/url]」の使用をおすすめします。
+    [hr][/hr]
+    [hr][/hr]
+    [hr][/hr]
+    [url=https://github.com/Kanayan-KK/SelectShrineRecipe] SourceCode [/url]
+    </description>
+    <builtin>false</builtin>
+    <visibility>Public</visibility>
+</Meta>
