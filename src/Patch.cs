@@ -9,6 +9,15 @@ namespace SelectShrineRecipe
     [HarmonyPatch]
     internal class Patch
     {
+        internal class MenuItem
+        {
+            public string? Text;
+            public string? Id;
+            public RecipeSource? Source;
+            public bool IsCategory;
+            public bool IsBack;
+        }
+
         [HarmonyPrefix]
         [HarmonyPatch(typeof(TraitShrine), nameof(TraitShrine._OnUse))]
         private static bool Prefix(TraitShrine __instance)
@@ -23,17 +32,11 @@ namespace SelectShrineRecipe
                 RecipeManager.BuildList();
             }
 
-            int lvBonus = 10;
+            const int lvBonus = 10;
             var player = EClass.player;
             var pc = EClass.pc;
 
-            // 習得可能なレシピを抽出
-            // 条件:
-            // 1. 最初から覚えているものではない
-            // 2. 工場が必要 または 即席作成可能
-            // 3. まだ覚えていない
-            // 4. 必要スキルレベルを満たしている (+15のボーナス込み)
-            // 5. 隠しレシピではない
+            // レシピを取得
             var candidates = RecipeManager.list.Where(r =>
                 !r.alwaysKnown &&
                 (r.NeedFactory || r.IsQuickCraft) &&
@@ -41,6 +44,7 @@ namespace SelectShrineRecipe
                 !r.row.ContainsTag("hiddenRecipe")
             ).ToList();
 
+            // レシピが見つからない場合は既存処理を実行
             if (candidates.Count == 0)
             {
                 Msg.Say("nothingHappens");
@@ -57,29 +61,85 @@ namespace SelectShrineRecipe
                 return String.Compare(a.Name, b.Name, StringComparison.Ordinal);
             });
 
-            // UIを表示して選択させる
-            EClass.ui.AddLayer<LayerList>()
-                .SetSize(600)
-                .SetHeader("chooseRecipe") // "レシピを選択" (lang key or raw string)
-                .SetList2(
-                    candidates,
-                    (r) =>
+            // UIレイヤーの作成
+            var layer = EClass.ui.AddLayer<LayerList>();
+            layer.SetSize(600);
+
+            // カテゴリの収集 (ルートカテゴリでグループ化)
+            var rootCats = candidates.Select(r => r.row.Category.GetRoot()).Distinct().OrderBy(c => c.id);
+            var catItems = new List<MenuItem>();
+
+            // Allカテゴリ追加
+            catItems.Add(new MenuItem { Text = "All", Id = null, IsCategory = true });
+
+            // カテゴリ追加
+            foreach (var c in rootCats)
+                catItems.Add(new MenuItem { Text = c.GetName(), Id = c.id, IsCategory = true });
+
+            // 前方宣言
+            Action<string?>? showRecipes = null;
+
+            // カテゴリ一覧表示処理
+            var showCats = () =>
+            {
+                layer.SetHeader("Select Category");
+                layer.SetList2(catItems, (i) => i.Text ?? "", (i, _) =>
+                {
+                    // カテゴリ選択 -> レシピ表示
+                    showRecipes?.Invoke(i.Id);
+                }, null, autoClose: false);
+            };
+
+            // レシピ一覧表示処理
+            showRecipes = (catId) =>
+            {
+                string header = catId == null ? "All" : EClass.sources.categories.map[catId].GetName();
+                layer.SetHeader(header);
+
+                var menuItems = new List<MenuItem>();
+
+                // Backボタン追加
+                menuItems.Add(new MenuItem { Text = "[ Back ]", IsBack = true });
+
+                var filtered = candidates.Where(r => catId == null || r.row.Category.GetRoot().id == catId);
+
+                foreach (var r in filtered)
+                    menuItems.Add(new MenuItem { Text = r.Name, Source = r });
+
+                layer.SetList2(menuItems,
+                    (i) =>
                     {
-                        bool known = player.recipes.knownRecipes.ContainsKey(r.id);
-                        return $"{r.Name} (Lv.{r.row.LV}) {(known ? "match_learned".lang() : "")}";
+                        if (i.IsBack)
+                            return i.Text ?? "";
+
+                        if (i.Source == null) return "";
+
+                        int recipeLv = player.recipes.knownRecipes.TryGetValue(i.Source.id, out int v) ? v : 0;
+                        return $"{i.Text} (Lv.{i.Source.row.LV}) Lv.{recipeLv}";
                     },
-                    (r, _) =>
+                    (i, _) =>
                     {
-                        // 選択時の処理: レシピを習得 (Addは既知の場合もカウントを増やす)
-                        if (!player.recipes.knownRecipes.ContainsKey(r.id))
+                        if (i.IsBack)
+                        {
+                            showCats();
+                            return;
+                        }
+
+                        if (i.Source == null) return;
+
+                        // レシピ習得時メッセージ表示
+                        if (!player.recipes.knownRecipes.ContainsKey(i.Source.id))
                             Msg.Say("learnRecipeIdea");
-                        player.recipes.Add(r.id);
-                    },
-                    (_, item) =>
-                    {
-                        // ツールチップ設定などをここで行うことも可能
-                    }
-                );
+
+                        player.recipes.Add(i.Source.id);
+
+                        // 知識の祠は1回使い切りなので、習得したら閉じる
+                        layer.Close();
+                    }, null, autoClose: false);
+            };
+
+            // 初期表示: カテゴリ一覧
+            showCats();
 
             // 既存処理をスキップ
             return false;
