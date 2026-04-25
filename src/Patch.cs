@@ -21,6 +21,10 @@ namespace SelectShrineRecipe
         [HarmonyPatch(typeof(TraitShrine), nameof(TraitShrine._OnUse))]
         private static bool Prefix(TraitShrine __instance)
         {
+            // Modが無効な場合はバニラの処理を実行
+            if (Plugin.EnableMod != null && !Plugin.EnableMod.Value)
+                return true;
+
             // 車輪の祠以外の場合は既存処理を実行
             if (__instance.Shrine.id != "invention")
                 return true;
@@ -33,18 +37,27 @@ namespace SelectShrineRecipe
             var player = EClass.player;
             var pc = EClass.pc;
 
-            // レシピを取得
-            var showHidden = Plugin.Instance?.ShowHiddenRecipe?.Value ?? false;
+            var showHidden = Plugin.ShowHiddenRecipe?.Value ?? false;
+            var unlearnedOnly = Plugin.UnlearnedRecipeOnly?.Value ?? false;
+
             var candidates = RecipeManager.list.Where(r =>
                     !r.alwaysKnown && // 最初から覚えているスキルは除外
                     (r.NeedFactory || r.IsQuickCraft) && // クラフト可能なレシピ
                     pc.Evalue(r.GetReqSkill().id) + 5 + lvBonus >= r.row.LV &&
-                    (showHidden || !r.row.ContainsTag("hiddenRecipe")) // 現物から習得のみの隠しレシピ
+                    (showHidden || !r.row.ContainsTag("hiddenRecipe")) && // 現物から習得のみの隠しレシピ
+                    (!unlearnedOnly || !player.recipes.knownRecipes.ContainsKey(r.id)) // 未習得フィルタ
             ).ToList();
 
             // レシピが見つからない場合は既存処理を実行
             if (candidates.Count == 0)
                 return true;
+
+            // 選択肢数の制限 (ChoiceCount > 0 の場合、ランダムに抽出)
+            if (Plugin.ChoiceCount != null && Plugin.ChoiceCount.Value > 0 && candidates.Count > Plugin.ChoiceCount.Value)
+            {
+                var rng = new System.Random();
+                candidates = candidates.OrderBy(x => rng.Next()).Take(Plugin.ChoiceCount.Value).ToList();
+            }
 
             // ソート: ルートカテゴリ -> レベル
             candidates.Sort((a, b) =>
