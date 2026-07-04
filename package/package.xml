@@ -4,7 +4,7 @@
     <id>SelectShrineRecipe</id>
     <author>Kanayan-KK</author>
     <loadPriority>100</loadPriority>
-    <version>0.23.253</version>
+    <version>0.23.325</version>
     <tags>General,QoL,Cheat</tags>
     <description>
         車輪の祠使用時に習得するレシピをリストから選択可能にします。

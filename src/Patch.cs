@@ -3,166 +3,125 @@ using System.Collections.Generic;
 using System.Linq;
 using HarmonyLib;
 
-namespace SelectShrineRecipe
+namespace SelectShrineRecipe;
+
+[HarmonyPatch]
+internal class Patch
 {
-    [HarmonyPatch]
-    internal class Patch
+    [HarmonyPrefix]
+    [HarmonyPatch(typeof(TraitShrine), nameof(TraitShrine._OnUse))]
+    private static bool Prefix(TraitShrine __instance)
     {
-        internal class MenuItem
+        // Mod無効時はバニラ処理へ戻す。
+        if (Plugin.EnableMod != null && !Plugin.EnableMod.Value)
+            return true;
+
+        // 車輪の祠以外はバニラ処理へ戻す。
+        if (__instance.Shrine.id != "invention")
+            return true;
+
+        var candidates = RecipeCandidates.Build();
+        if (candidates.Count == 0)
+            return true;
+
+        // UIで使う候補と前回選択レシピを準備する。
+        var candidateMap = candidates.GroupBy(r => r.id).ToDictionary(g => g.Key, g => g.First());
+        var lastRecipe = LastRecipeSelection.GetValidRecipe(candidateMap);
+        var layer = EClass.ui.AddLayer<LayerList>();
+        layer.SetSize(600);
+
+        Action? showCategories = null;
+        Action<string?>? showRecipes = null;
+
+        // カテゴリダイアログ表示処理
+        showCategories = () =>
         {
-            public string? Text;
-            public string? Id;
-            public RecipeSource? Source;
-            public bool IsCategory;
-            public bool IsBack;
-        }
-
-        [HarmonyPrefix]
-        [HarmonyPatch(typeof(TraitShrine), nameof(TraitShrine._OnUse))]
-        private static bool Prefix(TraitShrine __instance)
-        {
-            // Modが無効な場合はバニラの処理を実行
-            if (Plugin.EnableMod != null && !Plugin.EnableMod.Value)
-                return true;
-
-            // 車輪の祠以外の場合は既存処理を実行
-            if (__instance.Shrine.id != "invention")
-                return true;
-
-            // レシピリストが未構築の場合は構築
-            if (RecipeManager.list.Count == 0)
-                RecipeManager.BuildList();
-
-            const int lvBonus = 10;
-            var player = EClass.player;
-            var pc = EClass.pc;
-
-            var showHidden = Plugin.ShowHiddenRecipe?.Value ?? false;
-            var unlearnedOnly = Plugin.UnlearnedRecipeOnly?.Value ?? false;
-
-            var candidates = RecipeManager.list.Where(r =>
-                    !r.alwaysKnown && // 最初から覚えているスキルは除外
-                    (r.NeedFactory || r.IsQuickCraft) && // クラフト可能なレシピ
-                    pc.Evalue(r.GetReqSkill().id) + 5 + lvBonus >= r.row.LV &&
-                    (showHidden || !r.row.ContainsTag("hiddenRecipe")) && // 現物から習得のみの隠しレシピ
-                    (!unlearnedOnly || !player.recipes.knownRecipes.ContainsKey(r.id)) // 未習得フィルタ
-            ).ToList();
-
-            // レシピが見つからない場合は既存処理を実行
-            if (candidates.Count == 0)
-                return true;
-
-            // 選択肢数の制限 (ChoiceCount > 0 の場合、ランダムに抽出)
-            if (Plugin.ChoiceCount != null && Plugin.ChoiceCount.Value > 0 && candidates.Count > Plugin.ChoiceCount.Value)
+            layer.SetHeader("Select Category");
+            var catItems = BuildCategoryItems(candidates, lastRecipe);
+            layer.SetList2(catItems, i => i.Text ?? "", (i, _) =>
             {
-                var rng = new System.Random();
-                candidates = candidates.OrderBy(x => rng.Next()).Take(Plugin.ChoiceCount.Value).ToList();
-            }
-
-            // ソート: ルートカテゴリ -> レベル
-            candidates.Sort((a, b) =>
-            {
-                int c = String.Compare(a.row.Category.GetRoot().id, b.row.Category.GetRoot().id,
-                    StringComparison.Ordinal);
-                if (c != 0) return c;
-                return a.row.LV.CompareTo(b.row.LV);
-            });
-
-            // UIレイヤーの作成
-            var layer = EClass.ui.AddLayer<LayerList>();
-            layer.SetSize(600);
-
-            // カテゴリの収集＆ソート
-            var rootCats = candidates.Select(r => r.row.Category.GetRoot()).Distinct().OrderBy(c => c.GetName());
-
-            // カテゴリ一覧表示用リスト作成
-            var catItems = new List<MenuItem>();
-
-            // Allカテゴリ追加
-            catItems.Add(new MenuItem { Text = "All", Id = null, IsCategory = true });
-
-            // カテゴリ追加
-            foreach (var c in rootCats)
-                catItems.Add(new MenuItem { Text = c.GetName(), Id = c.id, IsCategory = true });
-
-            // 前方宣言
-            Action<string?>? showRecipes = null;
-
-            // カテゴリ一覧表示処理
-            var showCats = () =>
-            {
-                layer.SetHeader("Select Category");
-                layer.SetList2(catItems, (i) => i.Text ?? "", (i, _) =>
+                if (i.IsLastRecipe)
                 {
-                    // カテゴリ選択 -> レシピ表示
-                    showRecipes?.Invoke(i.Id);
-                }, null, autoClose: false);
-            };
+                    SelectRecipe(i, layer, showCategories);
+                    return;
+                }
 
-            // レシピ一覧表示処理
-            showRecipes = (catId) =>
+                showRecipes?.Invoke(i.Id);
+            }, null, autoClose: false);
+        };
+
+        // カテゴリごとのダイアログ表示処理
+        showRecipes = (catId) =>
+        {
+            var recipes = GetRecipes(candidates, catId);
+            layer.SetHeader(GetHeader(catId));
+            var menuItems = new List<RecipeMenuItem> { new RecipeMenuItem { Text = "[ Back ]", IsBack = true } };
+            menuItems.AddRange(recipes.Select(r => new RecipeMenuItem { Text = r.Name, Source = r }));
+
+            layer.SetList2(menuItems, GetRecipeText, (i, _) => SelectRecipe(i, layer, showCategories), (_, item) =>
             {
-                string header = catId == null ? "All" : EClass.sources.categories.map[catId].GetName();
-                layer.SetHeader(header);
+                // 長いレシピ名は省略せず表示する。
+                item.button1.mainText.horizontalOverflow = UnityEngine.HorizontalWrapMode.Overflow;
+            }, autoClose: false);
+        };
 
-                var menuItems = new List<MenuItem>();
+        showCategories();
+        return false;
+    }
 
-                // Backボタン追加
-                menuItems.Add(new MenuItem { Text = "[ Back ]", IsBack = true });
+    private static List<RecipeMenuItem> BuildCategoryItems(List<RecipeSource> candidates, RecipeSource? lastRecipe)
+    {
+        var items = new List<RecipeMenuItem>();
+        if (lastRecipe != null)
+            items.Add(new RecipeMenuItem { Text = $"Previous: {lastRecipe.Name}", Source = lastRecipe, IsLastRecipe = true });
 
-                var filtered = candidates.Where(r => catId == null || r.row.Category.GetRoot().id == catId);
+        items.Add(new RecipeMenuItem { Text = "All" });
+        var rootCats = candidates.Select(r => r.row.Category.GetRoot()).Distinct().OrderBy(c => c.GetName());
+        foreach (var c in rootCats)
+            items.Add(new RecipeMenuItem { Text = c.GetName(), Id = c.id });
 
-                foreach (var r in filtered)
-                    menuItems.Add(new MenuItem { Text = r.Name, Source = r });
+        return items;
+    }
 
-                layer.SetList2(menuItems,
-                    (i) =>
-                    {
-                        // レシピ名表示処理
-                        if (i.IsBack)
-                            return i.Text ?? "";
+    private static List<RecipeSource> GetRecipes(List<RecipeSource> candidates, string? catId)
+    {
+        return candidates.Where(r => catId == null || r.row.Category.GetRoot().id == catId).ToList();
+    }
 
-                        if (i.Source == null)
-                            return "";
+    private static string GetHeader(string? catId)
+    {
+        return catId == null ? "All" : EClass.sources.categories.map[catId].GetName();
+    }
 
-                        // 習得レベル取得
-                        int recipeLv = player.recipes.knownRecipes.TryGetValue(i.Source.id, out int v) ? v : 0;
-                        return $"{i.Text} (Lv.{i.Source.row.LV}) Lv.{recipeLv}";
-                    },
-                    (i, _) =>
-                    {
-                        // レシピ名クリック時処理
+    private static string GetRecipeText(RecipeMenuItem item)
+    {
+        if (item.IsBack)
+            return item.Text ?? "";
 
-                        // Back クリック時
-                        if (i.IsBack)
-                        {
-                            showCats();
-                            return;
-                        }
+        if (item.Source == null)
+            return "";
 
-                        if (i.Source == null)
-                            return;
+        int recipeLv = EClass.player.recipes.knownRecipes.TryGetValue(item.Source.id, out int v) ? v : 0;
+        return $"{item.Text} (Lv.{item.Source.row.LV}) Lv.{recipeLv}";
+    }
 
-                        // レシピ習得時メッセージ表示
-                        if (!player.recipes.knownRecipes.ContainsKey(i.Source.id))
-                            Msg.Say("learnRecipeIdea");
-
-                        player.recipes.Add(i.Source.id);
-
-                        layer.Close();
-                    },
-                    (_, item) =>
-                    {
-                        // テキストの自動改行を無効化
-                        item.button1.mainText.horizontalOverflow = UnityEngine.HorizontalWrapMode.Overflow;
-                    }, autoClose: false);
-            };
-
-            // 初期表示: カテゴリ一覧
-            showCats();
-
-            // 既存処理をスキップ
-            return false;
+    private static void SelectRecipe(RecipeMenuItem item, LayerList layer, Action? showCategories)
+    {
+        if (item.IsBack)
+        {
+            showCategories?.Invoke();
+            return;
         }
+
+        if (item.Source == null)
+            return;
+
+        // 未習得時だけ発想メッセージを出す。
+        if (!EClass.player.recipes.knownRecipes.ContainsKey(item.Source.id))
+            Msg.Say("learnRecipeIdea");
+
+        EClass.player.recipes.Add(item.Source.id);
+        LastRecipeSelection.Record(item.Source.id);
+        layer.Close();
     }
 }
