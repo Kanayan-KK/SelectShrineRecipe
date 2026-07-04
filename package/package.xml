@@ -14,6 +14,8 @@
         ShowHiddenRecipe:隠しレシピを表示する
         UnlearnedRecipeOnly:未習得のレシピのみ表示する
         ChoiceCount:選択肢の表示数（0で全件表示）
+        ShowPreviousRecipe:前回選択したレシピのボタンを表示する
+        LastRecipeId:前回選択ボタン用に自動保存されるレシピID。手動変更する場合は正しいレシピIDが必要で、存在しないIDや現在の条件で選択できないIDではボタンは表示されません。
         [hr][/hr]
         Allows you to select a recipe to learn from a list when using a Shrine of the Wheel.
         By changing the cfg setting, you can display hidden recipes that can normally only be learned by dismantling the item itself (e.g. Deluxe Snow Petite Cake).
@@ -22,6 +24,8 @@
         ShowHiddenRecipe: Show hidden recipes
         UnlearnedRecipeOnly: Only show unlearned recipes
         ChoiceCount: Number of choices to display (0 for all)
+        ShowPreviousRecipe: Show previous recipe button
+        LastRecipeId: Recipe id saved automatically for the previous recipe button. Manual edits require a valid recipe id; invalid or unavailable ids will not show the button.
         [hr][/hr]
         使用车轮神社时，可以从列表中选择要习得的配方。
         通过更改cfg设置，可以显示通常只能通过拆解现货（如豪华雪小蛋糕）才能习得的隐藏配方。
@@ -30,6 +34,8 @@
         ShowHiddenRecipe:显示隐藏配方
         UnlearnedRecipeOnly: 仅显示未习得的配方
         ChoiceCount: 显示的选项数量（0 表示显示全部）
+        ShowPreviousRecipe: 显示上次选择的配方按钮
+        LastRecipeId: 为上次选择按钮自动保存的配方ID。手动修改时需要填写正确的配方ID；无效ID或当前条件下不可选择的ID不会显示按钮。
         [hr][/hr]
         [url=https://github.com/Kanayan-KK/SelectShrineRecipe] SourceCode [/url]
     </description>
