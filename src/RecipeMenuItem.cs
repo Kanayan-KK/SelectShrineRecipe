@@ -7,4 +7,5 @@ internal class RecipeMenuItem
     internal RecipeSource? Source;
     internal bool IsBack;
     internal bool IsLastRecipe;
+    internal bool IsRandom;
 }

@@ -8,6 +8,8 @@ namespace SelectShrineRecipe;
 [HarmonyPatch]
 internal class Patch
 {
+    private static readonly Random Rng = new();
+
     /// <summary>
     /// 車輪の祠の使用処理をレシピ選択ダイアログへ差し替える。
     /// </summary>
@@ -52,6 +54,13 @@ internal class Patch
                 if (i.IsLastRecipe)
                 {
                     SelectRecipe(i, layer, showCategories, shrine);
+                    return;
+                }
+
+                // Randomボタンは現在の候補から即座に抽選する。
+                if (i.IsRandom)
+                {
+                    SelectRandomRecipe(candidates, layer, shrine);
                     return;
                 }
 
@@ -102,6 +111,7 @@ internal class Patch
         if (lastRecipe != null)
             items.Add(new RecipeMenuItem { Text = $"Previous: {lastRecipe.Name}", Source = lastRecipe, IsLastRecipe = true });
 
+        items.Add(new RecipeMenuItem { Text = "Random", IsRandom = true });
         items.Add(new RecipeMenuItem { Text = "All" });
         var rootCats = candidates.Select(r => r.row.Category.GetRoot()).Distinct().OrderBy(c => c.GetName());
         foreach (var c in rootCats)
@@ -141,6 +151,19 @@ internal class Patch
 
         int recipeLv = EClass.player.recipes.knownRecipes.TryGetValue(item.Source.id, out int v) ? v : 0;
         return $"{item.Text} (Lv.{item.Source.row.LV}) Lv.{recipeLv}";
+    }
+
+    /// <summary>
+    /// 現在の候補からランダムに1件選択する。
+    /// </summary>
+    private static void SelectRandomRecipe(List<RecipeSource> candidates, LayerList layer, TraitShrine shrine)
+    {
+        // 候補がなければ何もしない。
+        if (candidates.Count == 0)
+            return;
+
+        var recipe = candidates[Rng.Next(candidates.Count)];
+        SelectRecipe(new RecipeMenuItem { Text = recipe.Name, Source = recipe }, layer, null, shrine);
     }
 
     /// <summary>

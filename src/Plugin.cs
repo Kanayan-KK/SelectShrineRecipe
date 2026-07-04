@@ -10,7 +10,7 @@ public static class ModInfo
 {
     public const string Guid = "SelectShrineRecipe";
     public const string Name = "Select Shrine Recipe";
-    public const string Version = "1.0.2";
+    public const string Version = "1.0.3";
 }
 
 [BepInPlugin(ModInfo.Guid, ModInfo.Name, ModInfo.Version)]
